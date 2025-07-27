@@ -64,10 +64,10 @@ const HeroSection = () => {
 
     try {
       const [balanceRes, txRes, contractRes, tokensRes] = await Promise.all([
-        fetch(`http://localhost:3001/api/balance/${walletAddress}`),
-        fetch(`http://localhost:3001/api/txcount/${walletAddress}`),
-        fetch(`http://localhost:3001/api/contractcount/${walletAddress}`),
-        fetch(`http://localhost:3001/api/tokens/${walletAddress}`),
+        fetch(`https://backend-vg07.onrender.com/api/balance/${walletAddress}`),
+        fetch(`https://backend-vg07.onrender.com/api/txcount/${walletAddress}`),
+        fetch(`https://backend-vg07.onrender.com/api/contractcount/${walletAddress}`),
+        fetch(`https://backend-vg07.onrender.com/api/tokens/${walletAddress}`),
       ]);
 
       const balanceData = await balanceRes.json();
@@ -198,17 +198,17 @@ const HeroSection = () => {
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 text-center">
               <div>
                 <Wallet className={`mx-auto mb-2 ${iconColor}`} size={28} />
-                <p className={`text-2xl font-bold ${textPrimary}`}>{balanceMON?.toFixed(4) ?? "—"}</p>
+                <p className={`text-2xl font-bold ${textPrimary}`}>{balanceMON?.toFixed(4) ?? "â€”"}</p>
                 <p className={`text-sm ${textSecondary}`}>Balance (MON)</p>
               </div>
               <div>
                 <FileText className={`mx-auto mb-2 ${iconColor}`} size={28} />
-                <p className={`text-2xl font-bold ${textPrimary}`}>{txCount ?? "—"}</p>
+                <p className={`text-2xl font-bold ${textPrimary}`}>{txCount ?? "â€”"}</p>
                 <p className={`text-sm ${textSecondary}`}>Transactions</p>
               </div>
               <div>
                 <BadgeDollarSign className={`mx-auto mb-2 ${iconColor}`} size={28} />
-                <p className={`text-2xl font-bold ${textPrimary}`}>{contractCount ?? "—"}</p>
+                <p className={`text-2xl font-bold ${textPrimary}`}>{contractCount ?? "â€”"}</p>
                 <p className={`text-sm ${textSecondary}`}>Contracts Interacted</p>
               </div>
             </div>
@@ -244,7 +244,7 @@ const HeroSection = () => {
                           {token.contract.slice(0, 6)}...{token.contract.slice(-4)}
                         </a>
                       ) : (
-                        "—"
+                        "â€”"
                       )}
                     </td>
                   </tr>
