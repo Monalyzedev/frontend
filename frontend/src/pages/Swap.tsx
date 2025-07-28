@@ -6,13 +6,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
-import { 
-  ArrowUpDown, 
-  Settings, 
+import {
+  ArrowUpDown,
+  Settings,
   Info,
-  ChevronDown,
   Wallet,
-  AlertTriangle,
   Zap
 } from "lucide-react";
 import { useWallet } from "@/hooks/useWallet";
@@ -21,7 +19,6 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
-  SelectValue,
 } from "@/components/ui/select";
 import {
   Dialog,
@@ -41,7 +38,7 @@ const initialTokens = [
     balance: "1,234.56",
     logo: "https://img.bgstatic.com/multiLang/coinPriceLogo/monad.png",
     address: "--",
-    price: 1.85 // Prix en USD pour le calcul
+    price: 1.85
   },
   {
     symbol: "WMON",
@@ -49,7 +46,7 @@ const initialTokens = [
     balance: "0.85",
     logo: "https://imagedelivery.net/cBNDGgkrsEA-b_ixIp9SkQ/I_t8rg_V_400x400.jpg/public",
     address: "0x760AfE86e5de5fa0Ee542fc7B7B713e1c5425701",
-    price: 2500.00
+    price: 2500.0
   },
   {
     symbol: "CHOG",
@@ -57,7 +54,7 @@ const initialTokens = [
     balance: "850.00",
     logo: "https://imagedelivery.net/tWwhAahBw7afBzFUrX5mYQ/5d1206c2-042c-4edc-9f8b-dcef2e9e8f00/public",
     address: "0xE0590015A873bF326bd645c3E1266d4db41C4E6B",
-    price: 1.00
+    price: 1.0
   },
   {
     symbol: "DAK",
@@ -93,8 +90,14 @@ const initialTokens = [
   },
 ];
 
+const formatNumber = (value: number) =>
+  new Intl.NumberFormat("en-US", {
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 6,
+  }).format(value);
+
 const Swap = () => {
-  const { account, isConnected } = useWallet();
+  const { isConnected } = useWallet();
   const [tokens, setTokens] = useState(initialTokens);
   const [fromToken, setFromToken] = useState(initialTokens[0]);
   const [toToken, setToToken] = useState(initialTokens[1]);
@@ -102,33 +105,73 @@ const Swap = () => {
   const [toAmount, setToAmount] = useState("");
   const [slippage, setSlippage] = useState("0.5");
   const [isSwapping, setIsSwapping] = useState(false);
+  const [inputError, setInputError] = useState("");
 
-  // Calculer le taux de change basé sur les prix USD
   const exchangeRate = fromToken.price / toToken.price;
 
+  // Update toAmount based on fromAmount and exchangeRate
   const handleFromAmountChange = (value: string) => {
-    setFromAmount(value);
-    if (value && !isNaN(Number(value))) {
-      const convertedAmount = Number(value) * exchangeRate;
-      setToAmount(convertedAmount.toFixed(6));
-    } else {
-      setToAmount("");
+    // Only allow positive numbers or empty string
+    if (value === "" || (/^\d*\.?\d*$/.test(value) && Number(value) >= 0)) {
+      setFromAmount(value);
+
+      const fromBalanceNum = parseFloat(
+        (tokens.find(t => t.symbol === fromToken.symbol)?.balance || "0").replace(/,/g, "")
+      );
+
+      if (Number(value) > fromBalanceNum) {
+        setInputError(`Insufficient balance (${formatNumber(fromBalanceNum)} ${fromToken.symbol})`);
+      } else {
+        setInputError("");
+      }
+
+      if (value && !isNaN(Number(value))) {
+        const convertedAmount = Number(value) * exchangeRate;
+        setToAmount(convertedAmount.toFixed(6));
+      } else {
+        setToAmount("");
+      }
     }
   };
 
+  // Prevent selecting the same token in both selects
+  const handleFromTokenChange = (symbol: string) => {
+    if (symbol === toToken.symbol) {
+      toast({
+        title: "Invalid token selection",
+        description: "From and To tokens cannot be the same.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const token = tokens.find(t => t.symbol === symbol);
+    if (token) setFromToken(token);
+  };
+
+  const handleToTokenChange = (symbol: string) => {
+    if (symbol === fromToken.symbol) {
+      toast({
+        title: "Invalid token selection",
+        description: "From and To tokens cannot be the same.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const token = tokens.find(t => t.symbol === symbol);
+    if (token) setToToken(token);
+  };
+
   const handleSwapTokens = () => {
-    const tempToken = fromToken;
     setFromToken(toToken);
-    setToToken(tempToken);
-    
-    const tempAmount = fromAmount;
+    setToToken(fromToken);
     setFromAmount(toAmount);
-    setToAmount(tempAmount);
+    setToAmount(fromAmount);
+    setInputError("");
   };
 
   const handleMaxClick = () => {
     const currentFromToken = tokens.find(t => t.symbol === fromToken.symbol);
-    const maxAmount = currentFromToken?.balance.replace(",", "") || "0";
+    const maxAmount = currentFromToken?.balance.replace(/,/g, "") || "0";
     handleFromAmountChange(maxAmount);
   };
 
@@ -141,14 +184,23 @@ const Swap = () => {
       });
       return;
     }
+    if (inputError) {
+      toast({
+        title: "Swap error",
+        description: inputError,
+        variant: "destructive",
+      });
+      return;
+    }
 
     const fromAmountNum = parseFloat(fromAmount);
     const toAmountNum = parseFloat(toAmount);
-    
-    // Vérifier si l'utilisateur a assez de fonds
+
     const currentFromToken = tokens.find(t => t.symbol === fromToken.symbol);
-    const currentFromBalance = parseFloat(currentFromToken?.balance.replace(",", "") || "0");
-    
+    const currentFromBalance = parseFloat(
+      (currentFromToken?.balance || "0").replace(/,/g, "")
+    );
+
     if (fromAmountNum > currentFromBalance) {
       toast({
         title: "Insufficient balance",
@@ -157,49 +209,41 @@ const Swap = () => {
       });
       return;
     }
+
     setIsSwapping(true);
-    
-    // Simulate swap transaction
+
     setTimeout(() => {
-      // Mettre à jour les balances des tokens
-      setTokens(prevTokens => 
+      setTokens(prevTokens =>
         prevTokens.map(token => {
           if (token.symbol === fromToken.symbol) {
             const newBalance = currentFromBalance - fromAmountNum;
             return {
               ...token,
-              balance: newBalance.toLocaleString('en-US', { 
-                minimumFractionDigits: 2, 
-                maximumFractionDigits: 6 
-              })
+              balance: formatNumber(newBalance),
             };
           }
           if (token.symbol === toToken.symbol) {
-            const currentToBalance = parseFloat(token.balance.replace(",", "") || "0");
+            const currentToBalance = parseFloat(token.balance.replace(/,/g, "") || "0");
             const newBalance = currentToBalance + toAmountNum;
             return {
               ...token,
-              balance: newBalance.toLocaleString('en-US', { 
-                minimumFractionDigits: 2, 
-                maximumFractionDigits: 6 
-              })
+              balance: formatNumber(newBalance),
             };
           }
           return token;
         })
       );
-      
-      // Mettre à jour les tokens sélectionnés avec les nouvelles balances
+
+      // Update selected tokens with new balances
       setFromToken(prev => {
         const updatedToken = tokens.find(t => t.symbol === prev.symbol);
         return updatedToken ? { ...updatedToken } : prev;
       });
-      
       setToToken(prev => {
         const updatedToken = tokens.find(t => t.symbol === prev.symbol);
         return updatedToken ? { ...updatedToken } : prev;
       });
-      
+
       setIsSwapping(false);
       toast({
         title: "Swap successful!",
@@ -207,6 +251,7 @@ const Swap = () => {
       });
       setFromAmount("");
       setToAmount("");
+      setInputError("");
     }, 3000);
   };
 
@@ -250,21 +295,25 @@ const Swap = () => {
                 <CardTitle className="text-lg">Swap</CardTitle>
                 <Dialog>
                   <DialogTrigger asChild>
-                    <Button variant="ghost" size="sm" className="hover:text-white hover:bg-violet-600">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="hover:text-white hover:bg-violet-600"
+                      aria-label="Swap settings"
+                    >
                       <Settings className="w-4 h-4" />
                     </Button>
                   </DialogTrigger>
                   <DialogContent>
                     <DialogHeader>
                       <DialogTitle>Swap Settings</DialogTitle>
-                      <DialogDescription>
-                        Adjust your swap preferences
-                      </DialogDescription>
+                      <DialogDescription>Adjust your swap preferences</DialogDescription>
                     </DialogHeader>
                     <div className="space-y-4">
-                      <div>
-                        <label className="text-sm font-medium mb-2 block">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium mb-2 block flex items-center gap-1">
                           Slippage Tolerance
+                          <Info className="w-4 h-4 text-muted-foreground" title="Tolerance for price change during swap" />
                         </label>
                         <div className="flex gap-2">
                           {["0.1", "0.5", "1.0"].map((value) => (
@@ -285,6 +334,7 @@ const Swap = () => {
                 </Dialog>
               </div>
             </CardHeader>
+
             <CardContent className="space-y-4">
               {/* From Token */}
               <div className="space-y-2">
@@ -297,12 +347,24 @@ const Swap = () => {
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <Input
-                      type="number"
+                      type="text"
+                      inputMode="decimal"
                       placeholder="0.0"
                       value={fromAmount}
                       onChange={(e) => handleFromAmountChange(e.target.value)}
                       className="text-lg font-medium"
+                      aria-invalid={!!inputError}
+                      aria-describedby="fromAmount-error"
                     />
+                    {inputError && (
+                      <p
+                        id="fromAmount-error"
+                        className="text-xs text-destructive mt-1"
+                        role="alert"
+                      >
+                        {inputError}
+                      </p>
+                    )}
                   </div>
                   <div className="flex gap-1">
                     <Button
@@ -315,10 +377,7 @@ const Swap = () => {
                     </Button>
                     <Select
                       value={fromToken.symbol}
-                      onValueChange={(value) => {
-                        const token = tokens.find(t => t.symbol === value);
-                        if (token) setFromToken(token);
-                      }}
+                      onValueChange={handleFromTokenChange}
                     >
                       <SelectTrigger className="w-24 hover:text-white hover:bg-violet-600">
                         <div className="flex items-center gap-2">
@@ -330,20 +389,26 @@ const Swap = () => {
                         </div>
                       </SelectTrigger>
                       <SelectContent className="w-64" side="bottom" sideOffset={8} align="start" avoidCollisions={false}>
-                        {tokens.map((token) => (
-                          <SelectItem key={token.symbol} value={token.symbol} className="hover:bg-violet-600 hover:text-white">
-                            <div className="flex items-center gap-2">
-                              <Avatar className="w-5 h-5">
-                                <AvatarImage src={token.logo} />
-                                <AvatarFallback>{token.symbol.slice(0, 2)}</AvatarFallback>
-                              </Avatar>
-                              <div>
-                                <div className="font-medium">{token.symbol}</div>
-                                <div className="text-xs text-muted-foreground">{token.name}</div>
+                        {tokens
+                          .filter(t => t.symbol !== toToken.symbol)
+                          .map((token) => (
+                            <SelectItem
+                              key={token.symbol}
+                              value={token.symbol}
+                              className="hover:bg-violet-600 hover:text-white"
+                            >
+                              <div className="flex items-center gap-2">
+                                <Avatar className="w-5 h-5">
+                                  <AvatarImage src={token.logo} />
+                                  <AvatarFallback>{token.symbol.slice(0, 2)}</AvatarFallback>
+                                </Avatar>
+                                <div>
+                                  <div className="font-medium">{token.symbol}</div>
+                                  <div className="text-xs text-muted-foreground">{token.name}</div>
+                                </div>
                               </div>
-                            </div>
-                          </SelectItem>
-                        ))}
+                            </SelectItem>
+                          ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -357,6 +422,7 @@ const Swap = () => {
                   size="sm"
                   onClick={handleSwapTokens}
                   className="rounded-full hover:text-white hover:bg-violet-600"
+                  aria-label="Swap from and to tokens"
                 >
                   <ArrowUpDown className="w-4 h-4" />
                 </Button>
@@ -373,19 +439,17 @@ const Swap = () => {
                 <div className="flex gap-2">
                   <div className="flex-1">
                     <Input
-                      type="number"
+                      type="text"
                       placeholder="0.0"
                       value={toAmount}
                       readOnly
                       className="text-lg font-medium bg-muted/50"
+                      aria-readonly
                     />
                   </div>
                   <Select
                     value={toToken.symbol}
-                    onValueChange={(value) => {
-                      const token = tokens.find(t => t.symbol === value);
-                      if (token) setToToken(token);
-                    }}
+                    onValueChange={handleToTokenChange}
                   >
                     <SelectTrigger className="w-24">
                       <div className="flex items-center gap-2">
@@ -397,20 +461,22 @@ const Swap = () => {
                       </div>
                     </SelectTrigger>
                     <SelectContent className="w-64" side="bottom" sideOffset={8} align="start" avoidCollisions={false}>
-                      {tokens.map((token) => (
-                        <SelectItem key={token.symbol} value={token.symbol}>
-                          <div className="flex items-center gap-2">
-                            <Avatar className="w-5 h-5">
-                              <AvatarImage src={token.logo} />
-                              <AvatarFallback>{token.symbol.slice(0, 2)}</AvatarFallback>
-                            </Avatar>
-                            <div>
-                              <div className="font-medium">{token.symbol}</div>
-                              <div className="text-xs text-muted-foreground">{token.name}</div>
+                      {tokens
+                        .filter(t => t.symbol !== fromToken.symbol)
+                        .map((token) => (
+                          <SelectItem key={token.symbol} value={token.symbol}>
+                            <div className="flex items-center gap-2">
+                              <Avatar className="w-5 h-5">
+                                <AvatarImage src={token.logo} />
+                                <AvatarFallback>{token.symbol.slice(0, 2)}</AvatarFallback>
+                              </Avatar>
+                              <div>
+                                <div className="font-medium">{token.symbol}</div>
+                                <div className="text-xs text-muted-foreground">{token.name}</div>
+                              </div>
                             </div>
-                          </div>
-                        </SelectItem>
-                      ))}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>
@@ -421,10 +487,18 @@ const Swap = () => {
                 <div className="bg-muted/50 rounded-lg p-3 space-y-2">
                   <div className="flex justify-between text-sm">
                     <span className="text-muted-foreground">Rate</span>
-                    <span>1 {fromToken.symbol} = {exchangeRate.toFixed(6)} {toToken.symbol}</span>
+                    <span>
+                      1 {fromToken.symbol} = {exchangeRate.toFixed(6)} {toToken.symbol}
+                    </span>
                   </div>
                   <div className="flex justify-between text-sm">
-                    <span className="text-muted-foreground">Slippage</span>
+                    <span className="text-muted-foreground flex items-center gap-1">
+                      Slippage{" "}
+                      <Info
+                        className="w-4 h-4"
+                        title={`Allowed price fluctuation during swap: ${slippage}%`}
+                      />
+                    </span>
                     <span>{slippage}%</span>
                   </div>
                   <div className="flex justify-between text-sm">
@@ -437,9 +511,11 @@ const Swap = () => {
               {/* Swap Button */}
               <Button
                 onClick={handleSwap}
-                disabled={!fromAmount || !toAmount || isSwapping}
+                disabled={!fromAmount || !toAmount || !!inputError || isSwapping}
                 className="w-full bg-primary hover:bg-primary/90 text-primary-foreground"
-                style={{ boxShadow: 'var(--glow-primary)' }}
+                style={{ boxShadow: "var(--glow-primary)" }}
+                aria-live="polite"
+                aria-busy={isSwapping}
               >
                 {isSwapping ? (
                   <>
@@ -453,7 +529,6 @@ const Swap = () => {
                   </>
                 )}
               </Button>
-
             </CardContent>
           </Card>
 
